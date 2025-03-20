@@ -1,9 +1,5 @@
-python-telegram-bot>=20.0
-openai
-langchain-openai
+flask==
+pyTelegramBotAPI
 python-dotenv
-flask
-docx
-psutil
 requests
 gunicorn

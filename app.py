@@ -1,196 +1,192 @@
-from flask import Flask, render_template, jsonify
-import json
 import os
-from datetime import datetime, timedelta
-import psutil
-import threading
-import time
+from flask import Flask, request, jsonify
+import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
+# Initialize Flask app
 app = Flask(__name__)
 
-# مسیر فایل‌های داده
-USERS_FILE = "users.json"
-LOGS_FILE = "logs.json"
-REPORTS_FILE = "reports.json"
+# Initialize bot with your token
+BOT_TOKEN = '7595888832:AAGHkNqZcQZ4RDn5ww7vtYMPpNdiXmOpg7c'
+bot = telebot.TeleBot(BOT_TOKEN)
 
-# متغیر برای ذخیره وضعیت آپ‌تایم سرور
-server_uptime = {"start_time": datetime.now(), "is_running": True}
+# Welcome message
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    user_first_name = message.from_user.first_name
+    welcome_text = f"سلام {user_first_name}، به بات سنفی خوش آمدید!"
+    
+    # Create inline keyboard for menu
+    markup = InlineKeyboardMarkup()
+    markup.row_width = 2
+    markup.add(
+        InlineKeyboardButton("منوی اصلی", callback_data="main_menu"),
+        InlineKeyboardButton("درباره ما", callback_data="about")
+    )
+    
+    bot.send_message(message.chat.id, welcome_text, reply_markup=markup)
 
-# تابع برای بررسی دوره‌ای آپ‌تایم سرور
-def check_server_status():
-    while True:
-        server_uptime["is_running"] = True
-        server_uptime["uptime_seconds"] = (datetime.now() - server_uptime["start_time"]).total_seconds()
-        time.sleep(60)  # بررسی هر یک دقیقه
+# Help command
+@bot.message_handler(commands=['help'])
+def send_help(message):
+    help_text = """
+دستورات قابل استفاده:
+/start - شروع مجدد بات
+/help - نمایش این راهنما
+/menu - نمایش منوی اصلی
+    """
+    bot.send_message(message.chat.id, help_text)
 
-# شروع ترد بررسی وضعیت سرور
-status_thread = threading.Thread(target=check_server_status, daemon=True)
-status_thread.start()
+# Menu command
+@bot.message_handler(commands=['menu'])
+def show_menu(message):
+    menu_text = "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:"
+    
+    # Create reply keyboard with buttons
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
+    markup.add(KeyboardButton("خدمات"), KeyboardButton("محصولات"))
+    markup.add(KeyboardButton("تماس با ما"), KeyboardButton("سوالات متداول"))
+    
+    bot.send_message(message.chat.id, menu_text, reply_markup=markup)
 
-# روت صفحه اصلی
+# Handle inline button callbacks
+@bot.callback_query_handler(func=lambda call: True)
+def handle_callback_query(call):
+    if call.data == "main_menu":
+        menu_text = "منوی اصلی:"
+        
+        markup = InlineKeyboardMarkup()
+        markup.row_width = 2
+        markup.add(
+            InlineKeyboardButton("خدمات", callback_data="services"),
+            InlineKeyboardButton("محصولات", callback_data="products"),
+            InlineKeyboardButton("تماس با ما", callback_data="contact"),
+            InlineKeyboardButton("سوالات متداول", callback_data="faq")
+        )
+        
+        bot.edit_message_text(chat_id=call.message.chat.id, 
+                             message_id=call.message.message_id,
+                             text=menu_text, 
+                             reply_markup=markup)
+        
+    elif call.data == "about":
+        about_text = "بات سنفی برای ارائه خدمات و پشتیبانی به کاربران طراحی شده است."
+        
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("بازگشت به منو", callback_data="main_menu"))
+        
+        bot.edit_message_text(chat_id=call.message.chat.id, 
+                             message_id=call.message.message_id,
+                             text=about_text, 
+                             reply_markup=markup)
+    
+    elif call.data == "services":
+        services_text = "خدمات ما شامل موارد زیر است:\n- مشاوره\n- طراحی\n- پشتیبانی\n- آموزش"
+        
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("بازگشت به منو", callback_data="main_menu"))
+        
+        bot.edit_message_text(chat_id=call.message.chat.id, 
+                             message_id=call.message.message_id,
+                             text=services_text, 
+                             reply_markup=markup)
+                             
+    elif call.data == "products":
+        products_text = "محصولات ما:\n- محصول ۱\n- محصول ۲\n- محصول ۳"
+        
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("بازگشت به منو", callback_data="main_menu"))
+        
+        bot.edit_message_text(chat_id=call.message.chat.id, 
+                             message_id=call.message.message_id,
+                             text=products_text, 
+                             reply_markup=markup)
+                             
+    elif call.data == "contact":
+        contact_text = "برای تماس با ما:\nایمیل: info@senfi.com\nتلفن: 021-12345678"
+        
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("بازگشت به منو", callback_data="main_menu"))
+        
+        bot.edit_message_text(chat_id=call.message.chat.id, 
+                             message_id=call.message.message_id,
+                             text=contact_text, 
+                             reply_markup=markup)
+                             
+    elif call.data == "faq":
+        faq_text = "سوالات متداول:\n\nس: چگونه سفارش دهم؟\nج: از طریق منوی محصولات\n\nس: زمان پاسخگویی چقدر است؟\nج: حداکثر 24 ساعت"
+        
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("بازگشت به منو", callback_data="main_menu"))
+        
+        bot.edit_message_text(chat_id=call.message.chat.id, 
+                             message_id=call.message.message_id,
+                             text=faq_text, 
+                             reply_markup=markup)
+
+# Handle text messages
+@bot.message_handler(func=lambda message: True)
+def handle_text(message):
+    text = message.text
+    
+    if text == "خدمات":
+        services_text = "خدمات ما شامل موارد زیر است:\n- مشاوره\n- طراحی\n- پشتیبانی\n- آموزش"
+        bot.send_message(message.chat.id, services_text)
+        
+    elif text == "محصولات":
+        products_text = "محصولات ما:\n- محصول ۱\n- محصول ۲\n- محصول ۳"
+        bot.send_message(message.chat.id, products_text)
+        
+    elif text == "تماس با ما":
+        contact_text = "برای تماس با ما:\nایمیل: info@senfi.com\nتلفن: 021-12345678"
+        bot.send_message(message.chat.id, contact_text)
+        
+    elif text == "سوالات متداول":
+        faq_text = "سوالات متداول:\n\nس: چگونه سفارش دهم؟\nج: از طریق منوی محصولات\n\nس: زمان پاسخگویی چقدر است؟\nج: حداکثر 24 ساعت"
+        bot.send_message(message.chat.id, faq_text)
+        
+    else:
+        bot.send_message(message.chat.id, f"پیام شما: {text}\n\nبرای دیدن منوی اصلی، دستور /menu را وارد کنید.")
+
+# Set up webhook for Flask
+@app.route('/' + BOT_TOKEN, methods=['POST'])
+def webhook():
+    update = telebot.types.Update.de_json(request.stream.read().decode('utf-8'))
+    bot.process_new_updates([update])
+    return 'ok', 200
+
 @app.route('/')
-def index():
-    return render_template('index.html')
+def home():
+    return 'Bot is running!'
 
-# API برای دریافت آمار کاربران
-@app.route('/api/user_stats')
-def user_stats():
-    try:
-        with open(USERS_FILE, 'r', encoding='utf-8') as f:
-            users = json.load(f)
-        
-        total_users = len(users)
-        active_users = sum(1 for u in users.values() if u.get("is_authenticated", False))
-        admin_users = sum(1 for u in users.values() if u.get("role") == "admin")
-        regular_users = total_users - admin_users
-        
-        return jsonify({
-            "total_users": total_users,
-            "active_users": active_users,
-            "admin_users": admin_users,
-            "regular_users": regular_users
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# Set webhook route for deployment
+@app.route('/set_webhook', methods=['GET', 'POST'])
+def set_webhook():
+    url = request.args.get('url', '')
+    if url:
+        bot.remove_webhook()
+        bot.set_webhook(url + '/' + BOT_TOKEN)
+        return f'Webhook set to {url}'
+    return 'Please provide a URL parameter'
 
-# آخرین ۱۰ لاگ
-@app.route('/api/recent_logs')
-def recent_logs():
-    try:
-        # خواندن لاگ‌ها
-        try:
-            with open(LOGS_FILE, 'r', encoding='utf-8') as f:
-                logs = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            logs = []
-        
-        # مرتب‌سازی بر اساس زمان (نزولی)
-        logs.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
-        
-        # گرفتن ۱۰ لاگ آخر
-        recent = logs[:10]
-        
-        # فرمت‌دهی داده‌ها
-        formatted_logs = []
-        for log in recent:
-            try:
-                timestamp = datetime.fromisoformat(log.get("timestamp", ""))
-                formatted_date = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                formatted_date = "نامشخص"
-            
-            formatted_logs.append({
-                "date": formatted_date,
-                "user_id": log.get("user_id", "نامشخص"),
-                "event_type": log.get("event_type", "نامشخص"),
-                "details": log.get("details", "")
-            })
-        
-        return jsonify(formatted_logs)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# Poll mode for local testing
+def polling_mode():
+    bot.remove_webhook()
+    bot.polling(none_stop=True)
 
-# API برای دریافت آمار گزارش‌ها
-@app.route('/api/report_stats')
-def report_stats():
-    try:
-        # خواندن گزارش‌ها
-        try:
-            with open(REPORTS_FILE, 'r', encoding='utf-8') as f:
-                reports = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            reports = []
-        
-        # آمار کلی
-        total_reports = len(reports)
-        
-        # آمار روزانه در ۷ روز گذشته
-        daily_stats = {}
-        today = datetime.now().date()
-        
-        for i in range(7):
-            date = today - timedelta(days=i)
-            date_str = date.strftime("%Y-%m-%d")
-            daily_stats[date_str] = 0
-        
-        for report in reports:
-            try:
-                report_date = datetime.fromisoformat(report["timestamp"]).date()
-                date_str = report_date.strftime("%Y-%m-%d")
-                if date_str in daily_stats:
-                    daily_stats[date_str] += 1
-            except (KeyError, ValueError):
-                continue
-        
-        # تبدیل به لیست برای نمودار
-        daily_data = [{"date": date, "count": count} for date, count in daily_stats.items()]
-        daily_data.reverse()  # مرتب‌سازی از قدیمی به جدید
-        
-        return jsonify({
-            "total_reports": total_reports,
-            "daily_stats": daily_data
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# API برای دریافت آمار لاگ‌ها
-@app.route('/api/log_stats')
-def log_stats():
-    try:
-        # خواندن لاگ‌ها
-        try:
-            with open(LOGS_FILE, 'r', encoding='utf-8') as f:
-                logs = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            logs = []
-        
-        # آمار کلی رویدادها
-        total_logs = len(logs)
-        
-        # دسته‌بندی رویدادها
-        event_types = {}
-        for log in logs:
-            event_type = log.get("event_type", "unknown")
-            event_types[event_type] = event_types.get(event_type, 0) + 1
-        
-        # تبدیل به لیست برای نمودار
-        event_data = [{"type": event_type, "count": count} for event_type, count in event_types.items()]
-        
-        return jsonify({
-            "total_logs": total_logs,
-            "event_stats": event_data
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# API برای دریافت وضعیت سرور
-@app.route('/api/server_status')
-def server_status():
-    try:
-        uptime_seconds = server_uptime["uptime_seconds"]
-        
-        # تبدیل ثانیه به فرمت خوانا
-        days, remainder = divmod(uptime_seconds, 86400)
-        hours, remainder = divmod(remainder, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        
-        uptime_formatted = f"{int(days)} روز, {int(hours)} ساعت, {int(minutes)} دقیقه"
-        
-        # دریافت اطلاعات سیستم
-        cpu_percent = psutil.cpu_percent()
-        memory = psutil.virtual_memory()
-        memory_percent = memory.percent
-        
-        return jsonify({
-            "is_running": server_uptime["is_running"],
-            "uptime_seconds": uptime_seconds,
-            "uptime_formatted": uptime_formatted,
-            "cpu_percent": cpu_percent,
-            "memory_percent": memory_percent,
-            "start_time": server_uptime["start_time"].isoformat()
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=8000)
+if __name__ == '__main__':
+    # For local testing, use polling_mode()
+    # For deployment on hosting services, use the webhook setup
+    
+    if os.environ.get('WEBHOOK_URL'):
+        # Webhook mode for production
+        webhook_url = os.environ.get('WEBHOOK_URL')
+        bot.remove_webhook()
+        bot.set_webhook(webhook_url + '/' + BOT_TOKEN)
+        port = int(os.environ.get('PORT', 5000))
+        app.run(host='0.0.0.0', port=port)
+    else:
+        # Polling mode for local development
+        import threading
+        threading.Thread(target=polling_mode).start()
+        app.run(debug=True, host='0.0.0.0', port=5000)
