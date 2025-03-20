@@ -11,48 +11,72 @@ from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from io import BytesIO
 
-# تنظیم لاگینگ
+# Setup logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.INFO,
+    handlers=[
+        logging.FileHandler("bot.log"),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
-# بارگذاری متغیرهای محیطی
+# Load environment variables
 load_dotenv()
-TOKEN = os.getenv("TELEGRAM_TOKEN", "7595888832:AAGHkNqZcQZ4RDn5ww7vtYMPpNdiXmOpg7c")
+TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "86551786"))
 
-# مسیر فایل کاربران
+logger.info(f"Bot starting with TOKEN: {TOKEN[:5]}...{TOKEN[-5:] if TOKEN else None}")
+logger.info(f"Admin user ID: {ADMIN_USER_ID}")
+
+# File paths
 USERS_FILE = "users.json"
 LOGS_FILE = "logs.json"
 REPORTS_FILE = "reports.json"
 
-# حالت‌های مختلف کاربر
+# Create data directory if it doesn't exist
+os.makedirs("data", exist_ok=True)
+
+# User states
 WAITING_FOR_PASSKEY = "waiting_for_passkey"
 WAITING_FOR_REPORT = "waiting_for_report"
 WAITING_FOR_CONFIRMATION = "waiting_for_confirmation"
 NORMAL_MODE = "normal_mode"
 
-# دکمه‌های منو
+# Menu buttons
 MENU_KEYBOARD = [
     ["ارسال گزارش/نامه", "راهنما"],
     ["آرشیو", "ارتباط با مدیر"]
 ]
 
-# تنظیم passkey پیش‌فرض (در حالت واقعی باید از یک سیستم امن‌تر استفاده شود)
+# Default passkeys (should be changed in production)
 DEFAULT_PASSKEYS = {
     "admin": "admin123",
     "user1": "user123"
 }
 
-# بارگذاری کاربران از فایل
+# Load users from file
 def load_users():
     try:
+        if not os.path.exists(USERS_FILE):
+            logger.warning(f"Users file not found: {USERS_FILE}")
+            users = {
+                str(ADMIN_USER_ID): {
+                    "role": "admin",
+                    "passkey": DEFAULT_PASSKEYS["admin"],
+                    "failed_attempts": 0,
+                    "is_authenticated": False
+                }
+            }
+            save_users(users)
+            return users
+            
         with open(USERS_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        # ایجاد فایل اولیه با کاربر ادمین
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.error(f"Error loading users: {e}")
+        # Create initial file with admin user
         users = {
             str(ADMIN_USER_ID): {
                 "role": "admin",
@@ -64,111 +88,129 @@ def load_users():
         save_users(users)
         return users
 
-# ذخیره کاربران در فایل
+# Save users to file
 def save_users(users):
-    with open(USERS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(users, f, ensure_ascii=False, indent=4)
+    try:
+        with open(USERS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(users, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        logger.error(f"Error saving users: {e}")
 
-# ثبت لاگ
+# Log event
 def log_event(user_id, event_type, details=None):
     try:
-        with open(LOGS_FILE, 'r', encoding='utf-8') as f:
-            logs = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        logs = []
-    
-    logs.append({
-        "timestamp": datetime.now().isoformat(),
-        "user_id": user_id,
-        "event_type": event_type,
-        "details": details
-    })
-    
-    with open(LOGS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(logs, f, ensure_ascii=False, indent=4)
+        if os.path.exists(LOGS_FILE):
+            with open(LOGS_FILE, 'r', encoding='utf-8') as f:
+                logs = json.load(f)
+        else:
+            logger.warning(f"Logs file not found: {LOGS_FILE}")
+            logs = []
+        
+        logs.append({
+            "timestamp": datetime.now().isoformat(),
+            "user_id": user_id,
+            "event_type": event_type,
+            "details": details
+        })
+        
+        with open(LOGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(logs, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        logger.error(f"Error logging event: {e}")
 
-# ذخیره گزارش
+# Save report
 def save_report(user_id, original_text, ai_response):
     try:
-        with open(REPORTS_FILE, 'r', encoding='utf-8') as f:
-            reports = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        reports = []
-    
-    report_id = len(reports) + 1
-    reports.append({
-        "id": report_id,
-        "timestamp": datetime.now().isoformat(),
-        "user_id": user_id,
-        "original_text": original_text,
-        "ai_response": ai_response
-    })
-    
-    with open(REPORTS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(reports, f, ensure_ascii=False, indent=4)
-    
-    return report_id
+        if os.path.exists(REPORTS_FILE):
+            with open(REPORTS_FILE, 'r', encoding='utf-8') as f:
+                reports = json.load(f)
+        else:
+            logger.warning(f"Reports file not found: {REPORTS_FILE}")
+            reports = []
+        
+        report_id = len(reports) + 1
+        reports.append({
+            "id": report_id,
+            "timestamp": datetime.now().isoformat(),
+            "user_id": user_id,
+            "original_text": original_text,
+            "ai_response": ai_response
+        })
+        
+        with open(REPORTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(reports, f, ensure_ascii=False, indent=4)
+        
+        return report_id
+    except Exception as e:
+        logger.error(f"Error saving report: {e}")
+        return 0
 
-# ایجاد فایل ورد با محتوای گزارش
+# Create Word document with report content
 def create_docx(report_content, report_id):
-    doc = docx.Document()
-    
-    # اضافه کردن سربرگ
-    header = doc.add_paragraph()
-    header.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    header_run = header.add_run("شورای صنفی دانشگاه اصفهان")
-    header_run.bold = True
-    header_run.font.size = Pt(16)
-    
-    # اضافه کردن تاریخ
-    date_paragraph = doc.add_paragraph()
-    date_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    date_paragraph.add_run(f"تاریخ: {datetime.now().strftime('%Y/%m/%d')}")
-    
-    # اضافه کردن شماره گزارش
-    id_paragraph = doc.add_paragraph()
-    id_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    id_paragraph.add_run(f"شماره گزارش: {report_id}")
-    
-    # اضافه کردن خط جداکننده
-    doc.add_paragraph("_" * 50)
-    
-    # اضافه کردن محتوای گزارش
-    content_paragraph = doc.add_paragraph()
-    content_paragraph.add_run(report_content)
-    
-    # اضافه کردن امضا
-    signature = doc.add_paragraph()
-    signature.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    signature.add_run("\n\nبا احترام\nشورای صنفی دانشگاه اصفهان")
-    
-    # ذخیره در بایت آرایه
-    f = BytesIO()
-    doc.save(f)
-    f.seek(0)
-    return f
+    try:
+        doc = docx.Document()
+        
+        # Add header
+        header = doc.add_paragraph()
+        header.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        header_run = header.add_run("شورای صنفی دانشگاه اصفهان")
+        header_run.bold = True
+        header_run.font.size = Pt(16)
+        
+        # Add date
+        date_paragraph = doc.add_paragraph()
+        date_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        date_paragraph.add_run(f"تاریخ: {datetime.now().strftime('%Y/%m/%d')}")
+        
+        # Add report number
+        id_paragraph = doc.add_paragraph()
+        id_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        id_paragraph.add_run(f"شماره گزارش: {report_id}")
+        
+        # Add separator
+        doc.add_paragraph("_" * 50)
+        
+        # Add report content
+        content_paragraph = doc.add_paragraph()
+        content_paragraph.add_run(report_content)
+        
+        # Add signature
+        signature = doc.add_paragraph()
+        signature.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        signature.add_run("\n\nبا احترام\nشورای صنفی دانشگاه اصفهان")
+        
+        # Save to BytesIO
+        f = BytesIO()
+        doc.save(f)
+        f.seek(0)
+        return f
+    except Exception as e:
+        logger.error(f"Error creating DOCX: {e}")
+        return None
 
-# شروع بات
+# Start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     users = load_users()
     
-    # بررسی وضعیت احراز هویت کاربر
+    logger.info(f"User {user_id} started the bot")
+    
+    # Check user authentication
     if user_id in users and users[user_id].get("is_authenticated", False):
-        # کاربر قبلاً احراز هویت شده است
+        # User is already authenticated
         await show_menu(update, context)
     else:
-        # کاربر نیاز به احراز هویت دارد
+        # User needs authentication
         context.user_data["state"] = WAITING_FOR_PASSKEY
         await update.message.reply_text(
             "به ربات شورای صنفی دانشگاه اصفهان خوش آمدید.\n"
             "لطفاً پس‌کی خود را وارد کنید:"
         )
     
-    # ثبت لاگ شروع استفاده از بات
+    # Log bot start
     log_event(user_id, "start_bot")
 
-# نمایش منوی اصلی
+# Show main menu
 async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["state"] = NORMAL_MODE
     await update.message.reply_text(
@@ -176,150 +218,209 @@ async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardMarkup(MENU_KEYBOARD, resize_keyboard=True)
     )
 
-# پردازش پیام‌های متنی
+# Handle text messages
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    text = update.message.text
-    state = context.user_data.get("state", WAITING_FOR_PASSKEY)
-    users = load_users()
-    
-    # پردازش بر اساس حالت کاربر
-    if state == WAITING_FOR_PASSKEY:
-        # بررسی اعتبار پس‌کی
-        is_valid = False
-        for role, passkey in DEFAULT_PASSKEYS.items():
-            if text == passkey:
-                is_valid = True
-                user_role = role
-                break
+    try:
+        user_id = str(update.effective_user.id)
+        text = update.message.text
+        state = context.user_data.get("state", WAITING_FOR_PASSKEY)
+        users = load_users()
         
-        if is_valid:
-            # پس‌کی معتبر است
-            if user_id not in users:
-                users[user_id] = {
-                    "role": "user" if user_role != "admin" else "admin",
-                    "passkey": text,
-                    "failed_attempts": 0,
-                    "is_authenticated": True
-                }
-            else:
-                users[user_id]["is_authenticated"] = True
-                users[user_id]["failed_attempts"] = 0
+        logger.info(f"Received message from user {user_id} in state {state}")
+        
+        # Process based on user state
+        if state == WAITING_FOR_PASSKEY:
+            # Check passkey validity
+            is_valid = False
+            for role, passkey in DEFAULT_PASSKEYS.items():
+                if text == passkey:
+                    is_valid = True
+                    user_role = role
+                    break
             
-            save_users(users)
-            log_event(user_id, "login_success")
-            
-            await update.message.reply_text("ورود موفقیت‌آمیز!")
-            await show_menu(update, context)
-        else:
-            # پس‌کی نامعتبر است
-            if user_id in users:
-                users[user_id]["failed_attempts"] = users[user_id].get("failed_attempts", 0) + 1
+            if is_valid:
+                # Valid passkey
+                if user_id not in users:
+                    users[user_id] = {
+                        "role": "user" if user_role != "admin" else "admin",
+                        "passkey": text,
+                        "failed_attempts": 0,
+                        "is_authenticated": True
+                    }
+                else:
+                    users[user_id]["is_authenticated"] = True
+                    users[user_id]["failed_attempts"] = 0
+                
                 save_users(users)
-            
-            log_event(user_id, "login_failed")
-            
-            await update.message.reply_text(
-                "پس‌کی نامعتبر است. لطفاً دوباره تلاش کنید:"
-            )
-    
-    elif state == WAITING_FOR_REPORT:
-        # دریافت گزارش از کاربر
-        try:
-            # افزودن پیام راهنما به متن ارسالی کاربر برای ChatGPT
-            prompt = f"""
-            لطفاً متن زیر را به یک گزارش یا نامه رسمی برای شورای صنفی دانشگاه اصفهان تبدیل کنید. 
-            متن را کامل، مرتب و با رعایت اصول نگارش رسمی بازنویسی کنید.
-            
-            متن کاربر:
-            {text}
-            """
-            
-            # ارسال به ChatGPT
-            ai_response = ai_config.ask_ai(prompt)
-            
-            # ذخیره گزارش
-            report_id = save_report(user_id, text, ai_response)
-            
-            # ذخیره گزارش در context برای استفاده بعدی
-            context.user_data["current_report"] = ai_response
-            context.user_data["report_id"] = report_id
-            
-            # ایجاد دکمه‌های تأیید
-            keyboard = [
-                [InlineKeyboardButton("تایید پیش‌نویس", callback_data="confirm")],
-                [InlineKeyboardButton("ویرایش متن", callback_data="edit")]
-            ]
-            
-            # نمایش پیش‌نویس به کاربر
-            await update.message.reply_text(
-                f"پیش‌نویس شما آماده شد:\n\n{ai_response}",
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-            
-            # تغییر حالت کاربر
-            context.user_data["state"] = WAITING_FOR_CONFIRMATION
-            log_event(user_id, "draft_generated")
-            
-        except Exception as e:
-            # خطا در ارتباط با ChatGPT
-            logger.error(f"Error generating AI response: {e}")
-            log_event(user_id, "ai_error", str(e))
-            await update.message.reply_text(
-                "متأسفانه در پردازش درخواست شما خطایی رخ داده است. لطفاً دوباره تلاش کنید."
-            )
-            await show_menu(update, context)
-    
-    elif state == NORMAL_MODE:
-        # پردازش گزینه‌های منو
-        if text == "ارسال گزارش/نامه":
-            context.user_data["state"] = WAITING_FOR_REPORT
-            await update.message.reply_text(
-                "لطفاً متن اولیه گزارش یا نامه خود را وارد کنید:"
-            )
-        elif text == "راهنما":
-            await show_help(update, context)
-        elif text == "آرشیو":
-            await show_archive(update, context)
-        elif text == "ارتباط با مدیر":
-            await contact_admin(update, context)
-        else:
-            await update.message.reply_text(
-                "دستور نامعتبر. لطفاً از منوی موجود استفاده کنید."
-            )
-
-# پردازش دکمه‌های اینلاین
-async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    query = update.callback_query
-    await query.answer()
-    
-    if query.data == "confirm":
-        # تأیید پیش‌نویس
-        report_content = context.user_data.get("current_report", "")
-        report_id = context.user_data.get("report_id", 0)
+                log_event(user_id, "login_success")
+                
+                await update.message.reply_text("ورود موفقیت‌آمیز!")
+                await show_menu(update, context)
+            else:
+                # Invalid passkey
+                if user_id in users:
+                    users[user_id]["failed_attempts"] = users[user_id].get("failed_attempts", 0) + 1
+                    save_users(users)
+                
+                log_event(user_id, "login_failed")
+                
+                await update.message.reply_text(
+                    "پس‌کی نامعتبر است. لطفاً دوباره تلاش کنید:"
+                )
         
-        # ایجاد فایل ورد
-        docx_file = create_docx(report_content, report_id)
+        elif state == WAITING_FOR_REPORT:
+            # Receive report from user
+            try:
+                # Add guidance message to user's text for ChatGPT
+                prompt = f"""
+                لطفاً متن زیر را به یک گزارش یا نامه رسمی برای شورای صنفی دانشگاه اصفهان تبدیل کنید. 
+                متن را کامل، مرتب و با رعایت اصول نگارش رسمی بازنویسی کنید.
+                
+                متن کاربر:
+                {text}
+                """
+                
+                logger.info(f"Sending prompt to AI service for user {user_id}")
+                await update.message.reply_text("در حال پردازش پیش‌نویس... لطفاً صبر کنید.")
+                
+                # Send to ChatGPT
+                ai_response = ai_config.ask_ai(prompt)
+                
+                if not ai_response or ai_response.strip() == "":
+                    raise Exception("AI returned empty response")
+                
+                # Save report
+                report_id = save_report(user_id, text, ai_response)
+                
+                # Save report in context for later use
+                context.user_data["current_report"] = ai_response
+                context.user_data["report_id"] = report_id
+                
+                # Create confirmation buttons
+                keyboard = [
+                    [InlineKeyboardButton("تایید پیش‌نویس", callback_data="confirm")],
+                    [InlineKeyboardButton("ویرایش متن", callback_data="edit")]
+                ]
+                
+                # Show draft to user
+                await update.message.reply_text(
+                    f"پیش‌نویس شما آماده شد:\n\n{ai_response}",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+                
+                # Change user state
+                context.user_data["state"] = WAITING_FOR_CONFIRMATION
+                log_event(user_id, "draft_generated")
+                
+            except Exception as e:
+                # Error in AI communication
+                logger.error(f"Error generating AI response: {e}")
+                log_event(user_id, "ai_error", str(e))
+                await update.message.reply_text(
+                    "متأسفانه در پردازش درخواست شما خطایی رخ داده است. لطفاً دوباره تلاش کنید."
+                )
+                await show_menu(update, context)
         
-        # ارسال فایل به کاربر
-        await query.message.reply_document(
-            document=docx_file,
-            filename=f"report_{report_id}.docx",
-            caption="فایل گزارش شما آماده شد."
-        )
-        
-        log_event(user_id, "report_confirmed", {"report_id": report_id})
+        elif state == NORMAL_MODE:
+            # Process menu options
+            if text == "ارسال گزارش/نامه":
+                context.user_data["state"] = WAITING_FOR_REPORT
+                await update.message.reply_text(
+                    "لطفاً متن اولیه گزارش یا نامه خود را وارد کنید:"
+                )
+            elif text == "راهنما":
+                await show_help(update, context)
+            elif text == "آرشیو":
+                await show_archive(update, context)
+            elif text == "ارتباط با مدیر":
+                await contact_admin(update, context)
+            else:
+                await update.message.reply_text(
+                    "دستور نامعتبر. لطفاً از منوی موجود استفاده کنید."
+                )
+    except Exception as e:
+        logger.error(f"Error in handle_message: {e}")
+        await update.message.reply_text("خطایی رخ داده است. لطفاً دوباره تلاش کنید.")
         await show_menu(update, context)
-    
-    elif query.data == "edit":
-        # ویرایش متن
-        context.user_data["state"] = WAITING_FOR_REPORT
-        await query.message.reply_text(
-            "لطفاً متن جدید خود را وارد کنید:"
-        )
 
-# نمایش راهنما
+# Handle inline button callbacks
+async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        user_id = str(update.effective_user.id)
+        query = update.callback_query
+        await query.answer()
+        
+        logger.info(f"Callback from user {user_id}: {query.data}")
+        
+        if query.data == "confirm":
+            # Confirm draft
+            report_content = context.user_data.get("current_report", "")
+            report_id = context.user_data.get("report_id", 0)
+            
+            # Create Word document
+            docx_file = create_docx(report_content, report_id)
+            
+            if docx_file:
+                # Send file to user
+                await query.message.reply_document(
+                    document=docx_file,
+                    filename=f"report_{report_id}.docx",
+                    caption="فایل گزارش شما آماده شد."
+                )
+                
+                log_event(user_id, "report_confirmed", {"report_id": report_id})
+            else:
+                await query.message.reply_text("خطا در ایجاد فایل گزارش. لطفاً دوباره تلاش کنید.")
+            
+            await show_menu(update, context)
+        
+        elif query.data == "edit":
+            # Edit text
+            context.user_data["state"] = WAITING_FOR_REPORT
+            await query.message.reply_text(
+                "لطفاً متن جدید خود را وارد کنید:"
+            )
+        elif query.data.startswith("get_report_"):
+            # Get report by ID
+            report_id = int(query.data.split("_")[-1])
+            await get_report(update, context, report_id)
+    except Exception as e:
+        logger.error(f"Error in handle_callback: {e}")
+        await query.message.reply_text("خطایی رخ داده است. لطفاً دوباره تلاش کنید.")
+        await show_menu(update, context)
+
+# Get report by ID
+async def get_report(update: Update, context: ContextTypes.DEFAULT_TYPE, report_id):
+    user_id = str(update.effective_user.id)
+    
+    try:
+        # Read reports
+        with open(REPORTS_FILE, 'r', encoding='utf-8') as f:
+            reports = json.load(f)
+        
+        # Find report
+        report = next((r for r in reports if r["id"] == report_id and r["user_id"] == user_id), None)
+        
+        if report:
+            # Create Word document
+            docx_file = create_docx(report["ai_response"], report_id)
+            
+            if docx_file:
+                # Send file to user
+                await update.callback_query.message.reply_document(
+                    document=docx_file,
+                    filename=f"report_{report_id}.docx",
+                    caption=f"گزارش شماره {report_id}"
+                )
+            else:
+                await update.callback_query.message.reply_text("خطا در ایجاد فایل گزارش. لطفاً دوباره تلاش کنید.")
+        else:
+            await update.callback_query.message.reply_text("گزارش مورد نظر یافت نشد.")
+    except Exception as e:
+        logger.error(f"Error getting report: {e}")
+        await update.callback_query.message.reply_text("خطا در بازیابی گزارش. لطفاً دوباره تلاش کنید.")
+
+# Show help
 async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = """🔰 راهنمای استفاده از ربات شورای صنفی 🔰
 
@@ -333,33 +434,41 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
     await update.message.reply_text(help_text)
 
-# نمایش آرشیو
+# Show archive
 async def show_archive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     
     try:
-        with open(REPORTS_FILE, 'r', encoding='utf-8') as f:
-            reports = json.load(f)
+        if os.path.exists(REPORTS_FILE):
+            with open(REPORTS_FILE, 'r', encoding='utf-8') as f:
+                reports = json.load(f)
+        else:
+            reports = []
+            logger.warning(f"Reports file not found: {REPORTS_FILE}")
         
-        # فیلتر کردن گزارش‌های کاربر فعلی
+        # Filter reports for current user
         user_reports = [r for r in reports if r["user_id"] == user_id]
         
         if not user_reports:
             await update.message.reply_text("شما هنوز گزارشی ثبت نکرده‌اید.")
             return
         
-        # نمایش ۵ گزارش آخر
-        recent_reports = user_reports[-5:]
+        # Show 5 most recent reports
+        recent_reports = sorted(user_reports, key=lambda x: x["id"], reverse=True)[:5]
         response = "گزارش‌های اخیر شما:\n\n"
         
         for report in recent_reports:
-            date = datetime.fromisoformat(report["timestamp"]).strftime("%Y/%m/%d")
-            report_brief = report["ai_response"][:50] + "..." if len(report["ai_response"]) > 50 else report["ai_response"]
+            try:
+                date = datetime.fromisoformat(report["timestamp"]).strftime("%Y/%m/%d")
+            except (ValueError, KeyError):
+                date = "نامشخص"
+                
+            report_brief = report.get("ai_response", "")[:50] + "..." if len(report.get("ai_response", "")) > 50 else report.get("ai_response", "")
             response += f"📄 شناسه گزارش: {report['id']}\n"
             response += f"📅 تاریخ: {date}\n"
             response += f"📝 خلاصه: {report_brief}\n\n"
         
-        # ایجاد دکمه‌های آرشیو
+        # Create archive buttons
         buttons = []
         for report in recent_reports:
             buttons.append([InlineKeyboardButton(f"دریافت گزارش {report['id']}", callback_data=f"get_report_{report['id']}")])
@@ -373,20 +482,26 @@ async def show_archive(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error showing archive: {e}")
         await update.message.reply_text("خطا در نمایش آرشیو. لطفاً دوباره تلاش کنید.")
 
-# ارتباط با مدیر
+# Contact admin
 async def contact_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "برای ارتباط با مدیر، لطفاً پیام خود را با /admin شروع کنید. مثال:\n"
         "/admin سلام، یک سوال داشتم..."
     )
 
-# ارسال پیام به مدیر
+# Send message to admin
 async def send_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_name = update.effective_user.first_name
-    message = update.message.text[7:]  # حذف /admin از ابتدای پیام
     
-    # ارسال پیام به ادمین
+    # Remove /admin from the beginning of message
+    if len(update.message.text) <= 7:
+        await update.message.reply_text("لطفاً پیام خود را پس از دستور /admin وارد کنید.")
+        return
+        
+    message = update.message.text[7:]
+    
+    # Send message to admin
     try:
         await context.bot.send_message(
             chat_id=ADMIN_USER_ID,
@@ -397,18 +512,23 @@ async def send_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error sending message to admin: {e}")
         await update.message.reply_text("خطا در ارسال پیام به مدیر. لطفاً دوباره تلاش کنید.")
 
-# پاسخ مدیر به کاربر
+# Admin reply to user
+# Admin reply to user
 async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
-    # بررسی این که آیا فرستنده مدیر است یا خیر
+    # Check if sender is admin
     if user_id != ADMIN_USER_ID:
         await update.message.reply_text("شما دسترسی به این دستور را ندارید.")
         return
     
-    # فرمت دستور: /reply ID MESSAGE
+    # Format: /reply ID MESSAGE
     try:
         command_parts = update.message.text.split(" ", 2)
+        if len(command_parts) < 3:
+            await update.message.reply_text("فرمت صحیح: /reply شناسه_کاربر پیام")
+            return
+            
         target_user_id = command_parts[1]
         message = command_parts[2]
         
@@ -421,35 +541,43 @@ async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error in admin reply: {e}")
         await update.message.reply_text("خطا در ارسال پاسخ. لطفاً دستور را به شکل صحیح وارد کنید:\n/reply ID MESSAGE")
 
-# دستور آمار (فقط برای مدیر)
+# Statistics command (admin only)
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
-    # بررسی این که آیا فرستنده مدیر است یا خیر
+    # Check if sender is admin
     if user_id != ADMIN_USER_ID:
         await update.message.reply_text("شما دسترسی به این دستور را ندارید.")
         return
     
     try:
-        # آمار کاربران
+        # User statistics
         users = load_users()
         active_users = sum(1 for u in users.values() if u.get("is_authenticated", False))
         
-        # آمار گزارش‌ها
+        # Report statistics
         try:
-            with open(REPORTS_FILE, 'r', encoding='utf-8') as f:
-                reports = json.load(f)
-            total_reports = len(reports)
+            if os.path.exists(REPORTS_FILE):
+                with open(REPORTS_FILE, 'r', encoding='utf-8') as f:
+                    reports = json.load(f)
+                total_reports = len(reports)
+            else:
+                total_reports = 0
         except (FileNotFoundError, json.JSONDecodeError):
             total_reports = 0
         
-        # آمار لاگ‌ها
+        # Log statistics
         try:
-            with open(LOGS_FILE, 'r', encoding='utf-8') as f:
-                logs = json.load(f)
-            total_logs = len(logs)
-            login_failures = sum(1 for log in logs if log["event_type"] == "login_failed")
-            ai_errors = sum(1 for log in logs if log["event_type"] == "ai_error")
+            if os.path.exists(LOGS_FILE):
+                with open(LOGS_FILE, 'r', encoding='utf-8') as f:
+                    logs = json.load(f)
+                total_logs = len(logs)
+                login_failures = sum(1 for log in logs if log.get("event_type") == "login_failed")
+                ai_errors = sum(1 for log in logs if log.get("event_type") == "ai_error")
+            else:
+                total_logs = 0
+                login_failures = 0
+                ai_errors = 0
         except (FileNotFoundError, json.JSONDecodeError):
             total_logs = 0
             login_failures = 0
@@ -473,20 +601,25 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("خطا در تولید آمار. لطفاً دوباره تلاش کنید.")
 
 def main():
-    # ایجاد و پیکربندی اپلیکیشن
-    application = Application.builder().token(TOKEN).build()
-    
-    # اضافه کردن هندلرها
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", show_help))
-    application.add_handler(CommandHandler("admin", send_to_admin))
-    application.add_handler(CommandHandler("reply", admin_reply))
-    application.add_handler(CommandHandler("stats", stats))
-    application.add_handler(CallbackQueryHandler(handle_callback))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # شروع بات
-    application.run_polling()
+    try:
+        # Create and configure application
+        logger.info("Creating application...")
+        application = Application.builder().token(TOKEN).build()
+        
+        # Add handlers
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("help", show_help))
+        application.add_handler(CommandHandler("admin", send_to_admin))
+        application.add_handler(CommandHandler("reply", admin_reply))
+        application.add_handler(CommandHandler("stats", stats))
+        application.add_handler(CallbackQueryHandler(handle_callback))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        
+        # Start bot
+        logger.info("Starting bot...")
+        application.run_polling()
+    except Exception as e:
+        logger.critical(f"Fatal error starting bot: {e}")
 
 if __name__ == "__main__":
     main()
