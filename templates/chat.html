@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>دستیار هوشمند شورای صنفی دانشگاه اصفهان</title>
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-header">
+        <div class="brand">شورای صنفی دانشگاه اصفهان</div>
+        <div class="subtitle">دستیار هوشمند راهنمای آیین‌نامه و مقررات</div>
+    </div>
+    <div class="chat-box" id="chat-box">
+        <!-- پیام خوش‌آمدگویی -->
+        <div class="message bot welcome-message">
+            سلام! من دستیار هوشمند شورای صنفی دانشگاه اصفهان هستم. می‌توانم در موارد زیر به شما کمک کنم:
+            <ul>
+                <li>اطلاعات درباره آیین‌نامه شورای صنفی</li>
+                <li>پاسخ به سوالات شما درباره ساختار و تشکیلات شورا</li>
+                <li>راهنمایی درباره شرایط عضویت در شورا</li>
+                <li>توضیح وظایف و حقوق اعضای شورا</li>
+                <li>اطلاعات درباره نحوه برگزاری جلسات و رسمیت آن‌ها</li>
+            </ul>
+            چه سوالی درباره شورای صنفی دارید؟
+        </div>
+    </div>
+    <div class="input-container">
+        <textarea id="user-input" placeholder="سوال خود را درباره شورای صنفی بپرسید..." rows="2"></textarea>
+        <button class="send-btn" onclick="sendMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+    </div>
+</div>
+
+<script>
+    function formatTime() {
+        var date = new Date();
+        return date.getHours().toString().padStart(2, '0') + ":" + 
+               date.getMinutes().toString().padStart(2, '0');
+    }
+
+    function isRTL(text) {
+        // تشخیص متن فارسی با استفاده از رجکس
+        const rtlChars = /[\u0591-\u07FF\u200F\u202B\u202E\uFB1D-\uFDFD\uFE70-\uFEFC]/;
+        return rtlChars.test(text);
+    }
+
+    function sendMessage() {
+        var userInput = document.getElementById("user-input").value;
+        var chatBox = document.getElementById("chat-box");
+
+        if (userInput.trim() === "") {
+            return;
+        }
+
+        // نمایش پیام کاربر
+        chatBox.innerHTML += "<div class='message user'>" + userInput + " <span class='time'>" + formatTime() + "</span></div>";
+
+        // پاک کردن ورودی کاربر
+        document.getElementById("user-input").value = "";
+
+        // اسکرول به پایین
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        // نمایش انیمیشن لودینگ
+        chatBox.innerHTML += "<div class='message bot loading'><span>در حال تحلیل و بررسی...</span><i class='fas fa-circle-notch'></i></div>";
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        // ارسال پیام به سرور
+        fetch("/ask", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: "user_input=" + encodeURIComponent(userInput)
+        })
+        .then(response => response.json())
+        .then(data => {
+            // حذف انیمیشن لودینگ
+            var loadingMessage = document.querySelector(".loading");
+            loadingMessage.remove();
+
+            // تشخیص جهت متن پاسخ
+            const messageClass = isRTL(data.response) ? 'rtl' : 'ltr';
+
+            // تبدیل متن به HTML با استفاده از marked
+            const formattedResponse = marked.parse(data.response);
+
+            // نمایش پاسخ چت‌بات با جهت مناسب و پشتیبانی از Markdown
+            chatBox.innerHTML += "<div class='message bot " + messageClass + "'>" + formattedResponse + "<span class='time'>" + formatTime() + "</span></div>";
+            chatBox.scrollTop = chatBox.scrollHeight;
+        })
+        .catch(error => {
+            // حذف انیمیشن لودینگ
+            var loadingMessage = document.querySelector(".loading");
+            loadingMessage.remove();
+
+            // نمایش پیام خطا
+            chatBox.innerHTML += "<div class='message bot error'>متأسفانه در پردازش درخواست شما مشکلی پیش آمد. لطفاً دوباره تلاش کنید.</div>";
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+    }
+
+    // افزودن عملکرد ارسال با دکمه Enter
+    document.getElementById("user-input").addEventListener("keypress", function(event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            sendMessage();
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,380 @@
+/* استایل‌های کلی برای کل پروژه */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Vazirmatn', sans-serif;
+    background-color: #121212; /* پس‌زمینه دارک مود */
+    color: #e0e0e0; /* متن روشن برای دارک مود */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+}
+
+/* طراحی چت‌بات */
+.chat-container {
+    width: 100%;
+    max-width: 450px;
+    background-color: #1f1f1f; /* پس‌زمینه تیره برای چت */
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.chat-header {
+    background-color: rgba(28, 28, 28, 0.7); /* رنگ خاکی تیره با شفافیت */
+    color: white;
+    padding: 15px;
+    text-align: center;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    backdrop-filter: blur(10px); /* ایجاد تاری برای پس‌زمینه */
+    -webkit-backdrop-filter: blur(10px); /* برای پشتیبانی مرورگرهای قدیمی‌تر */
+}
+
+.chat-header .brand {
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.chat-header .subtitle {
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+.chat-box {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    background: linear-gradient(180deg, rgba(51, 51, 51, 0.9), rgba(0, 0, 0, 0.9)); /* گرادیان عمودی */
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-radius: 10px;
+}
+
+.message {
+    padding: 12px;
+    border-radius: 10px;
+    max-width: 75%;
+    word-wrap: break-word;
+    animation: fadeIn 0.5s ease-in;
+    background: rgba(255, 255, 255, 0.1); /* پس‌زمینه نیمه شفاف */
+    backdrop-filter: blur(10px); /* تاری برای پس‌زمینه */
+    -webkit-backdrop-filter: blur(10px); /* پشتیبانی از مرورگرهای قدیمی‌تر */
+    border: 1px solid rgba(255, 255, 255, 0.2); /* بوردر شفاف */
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.1); /* ایجاد سایه برای ظاهر شیشه‌ای */
+}
+
+.message.user {
+    align-self: flex-end;
+    background: rgba(45, 45, 45, 0.7); /* رنگ نیمه شفاف برای پیام کاربر */
+    border: 1px solid rgba(255, 255, 255, 0.15); /* بوردر شیشه‌ای برای پیام کاربر */
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.1); /* سایه شیشه‌ای */
+    direction: rtl;
+}
+
+.message.bot {
+    align-self: flex-start;
+    background: rgba(68, 68, 68, 0.7); /* رنگ نیمه شفاف برای پیام ربات */
+    border: 1px solid rgba(255, 255, 255, 0.15); /* بوردر شیشه‌ای برای پیام ربات */
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.1); /* سایه شیشه‌ای */
+    display: flex;
+    flex-direction: column;
+}
+
+/* استایل‌های RTL/LTR */
+.message.bot.rtl {
+    direction: rtl;
+    text-align: right;
+}
+
+.message.bot.ltr {
+    direction: ltr;
+    text-align: left;
+}
+
+.loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 18px;
+}
+
+.loading span {
+    margin-right: 5px;
+}
+
+.loading i {
+    font-size: 24px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* طراحی برای ورودی و دکمه ارسال */
+.input-container {
+    display: flex;
+    align-items: center; /* مرکز قرار دادن دکمه و ورودی به صورت عمودی */
+    padding: 10px;
+    background-color: #1f1f1f;
+    border-bottom: 1px solid #444;
+}
+
+#user-input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 20px;
+    border: 1px solid #444;
+    font-size: 16px;
+    margin-right: 10px;
+    resize: none;
+    background-color: #333333;
+    color: #e0e0e0;
+    font-family: 'Vazirmatn', sans-serif;
+    direction: rtl;
+    text-align: right;
+}
+
+.send-btn {
+    padding: 14px;
+    background: linear-gradient(135deg, #4CAF50, #2E7D32);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+    font-size: 18px;
+    width: 50px;
+    height: 50px;
+    margin-left: 10px;
+}
+
+.send-btn:hover {
+    background: linear-gradient(135deg, #66BB6A, #388E3C);
+    box-shadow: 0 8px 20px rgba(76, 175, 80, 0.4);
+    transform: translateY(-2px);
+}
+
+.send-btn:active {
+    background: linear-gradient(135deg, #388E3C, #1B5E20);
+    box-shadow: 0 3px 10px rgba(76, 175, 80, 0.2);
+    transform: translateY(1px);
+}
+
+.send-btn i {
+    font-size: 22px;
+}
+
+.time {
+    font-size: 12px;
+    color: #888;
+    text-align: left;
+    margin-top: 5px;
+}
+
+/* پیام خوش‌آمدگویی */
+.welcome-message {
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.3), rgba(46, 125, 50, 0.3)) !important;
+    padding: 20px !important;
+    margin-bottom: 30px !important;
+    border: 1px solid rgba(76, 175, 80, 0.4) !important;
+    direction: rtl;
+    text-align: right;
+}
+
+.welcome-message ul {
+    margin: 15px 20px;
+    list-style-type: none;
+}
+
+.welcome-message li {
+    margin: 8px 0;
+    position: relative;
+    padding-right: 20px;
+}
+
+.welcome-message li:before {
+    content: "•";
+    position: absolute;
+    right: 0;
+    color: #4CAF50;
+}
+
+/* انیمیشن برای ورود صفحه */
+@keyframes fadeIn {
+    0% { opacity: 0; transform: translateY(-20px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+/* طراحی برای صفحات کوچک‌تر */
+@media (max-width: 600px) {
+    .chat-container {
+        width: 100%;
+        height: calc(100vh - 60px); /* 100vh منهای ارتفاع هدر */
+        max-width: none; /* حذف حداکثر عرض */
+        position: fixed; /* چت‌بات فیکس بشه */
+        top: 0; /* از بالا شروع بشه */
+        left: 0; /* از سمت چپ شروع بشه */
+        z-index: 9999; /* اطمینان از اینکه چت‌بات همیشه بالاتر از سایر عناصر قرار بگیره */
+    }
+
+    #user-input {
+        font-size: 14px;
+    }
+
+    .send-btn i {
+        font-size: 18px;
+    }
+}
+
+/* دکمه افزودن رویداد */
+.add-event-btn {
+    font-family: 'Vazirmatn', sans-serif;
+    padding: 8px 15px;
+    background-color: rgba(216, 86, 117, 0.6); /* رنگ صورتی با شفافیت */
+    color: white;
+    border: 1px solid rgba(216, 86, 117, 0.8); /* بوردر شفاف صورتی */
+    border-radius: 5px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 14px;
+    margin-top: 10px;
+    align-self: flex-start;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(8px); /* ایجاد تاری برای پس‌زمینه */
+    -webkit-backdrop-filter: blur(8px); /* برای پشتیبانی مرورگرهای قدیمی‌تر */
+    transition: all 0.3s ease;
+}
+
+.add-event-btn:hover {
+    background-color: rgba(216, 86, 117, 0.8); /* صورتی پررنگ‌تر با شفافیت بیشتر */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
+    border-color: rgba(216, 86, 117, 1); /* بوردر صورتی پررنگ‌تر */
+}
+
+.add-event-btn:active {
+    background-color: rgba(186, 66, 97, 0.9); /* رنگ صورتی تیره‌تر */
+}
+
+/* استایل‌های Markdown */
+.message.bot h1, 
+.message.bot h2, 
+.message.bot h3, 
+.message.bot h4, 
+.message.bot h5, 
+.message.bot h6 {
+    margin: 15px 0 10px;
+    color: #4CAF50;
+    font-weight: bold;
+}
+
+.message.bot h1 { font-size: 24px; }
+.message.bot h2 { font-size: 22px; }
+.message.bot h3 { font-size: 20px; }
+.message.bot h4 { font-size: 18px; }
+.message.bot h5 { font-size: 16px; }
+.message.bot h6 { font-size: 14px; }
+
+.message.bot p {
+    margin: 10px 0;
+    line-height: 1.6;
+}
+
+.message.bot strong {
+    color: #66BB6A;
+    font-weight: bold;
+}
+
+.message.bot em {
+    font-style: italic;
+}
+
+.message.bot ul, 
+.message.bot ol {
+    margin: 10px 20px;
+    padding-right: 20px;
+}
+
+.message.bot li {
+    margin: 5px 0;
+    line-height: 1.5;
+}
+
+.message.bot code {
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 14px;
+}
+
+.message.bot pre {
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 15px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 10px 0;
+}
+
+.message.bot pre code {
+    background-color: transparent;
+    padding: 0;
+}
+
+.message.bot blockquote {
+    border-right: 3px solid #4CAF50;
+    margin: 10px 0;
+    padding: 5px 15px;
+    background-color: rgba(76, 175, 80, 0.1);
+}
+
+.message.bot a {
+    color: #81C784;
+    text-decoration: none;
+    border-bottom: 1px dashed #81C784;
+}
+
+.message.bot a:hover {
+    color: #4CAF50;
+    border-bottom-style: solid;
+}
+
+.message.bot hr {
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 15px 0;
+}
+
+.message.bot table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 15px 0;
+}
+
+.message.bot th,
+.message.bot td {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px;
+    text-align: right;
+}
+
+.message.bot th {
+    background-color: rgba(76, 175, 80, 0.1);
+    font-weight: bold;
+}
